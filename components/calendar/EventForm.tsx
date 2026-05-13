@@ -1,6 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
+
+import { format } from "date-fns";
+
+import { useForm } from "react-hook-form";
+
+import { z } from "zod";
+
+import { zodResolver } from "@hookform/resolvers/zod";
+
 import type { Event } from "@/types/event";
 
 type Props = {
@@ -13,123 +22,221 @@ type Props = {
     location?: string,
     description?: string,
     color?: string,
+    repeat?: "none" | "daily" | "weekly" | "monthly" | "yearly",
   ) => void;
   onClose: () => void;
   onDelete?: () => void;
 };
+
+const schema = z
+  .object({
+    title: z
+      .string()
+      .min(1, "タイトルを入力してください")
+      .max(50, "タイトルは50文字以内です"),
+
+    start: z.string(),
+
+    end: z.string(),
+
+    location: z.string().max(30, "場所は30文字以内です").optional(),
+
+    description: z.string().max(200, "詳細は200文字以内です").optional(),
+
+    color: z.string(),
+
+    repeat: z.enum(["none", "daily", "weekly", "monthly", "yearly"]).optional(),
+  })
+  .refine(
+    (data) => {
+      return data.start < data.end;
+    },
+    {
+      message: "終了時間は開始時間より後にしてください",
+      path: ["end"],
+    },
+  );
+
+type FormData = z.infer<typeof schema>;
 
 export default function EventForm({
   selectedDate,
   initialEvent,
   onSave,
   onClose,
-  onDelete,
 }: Props) {
-  const [title, setTitle] = useState("");
-  const [location, setLocation] = useState("");
-  const [description, setDescription] = useState("");
-  const [color, setColor] = useState("bg-blue-400");
-  const [error, setError] = useState("");
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    reset,
+    watch,
+    setValue,
+  } = useForm<FormData>({
+    resolver: zodResolver(schema),
 
-  const toLocalInputValue = (date: Date) => {
-    const offset = date.getTimezoneOffset();
-    const local = new Date(date.getTime() - offset * 60000);
-    return local.toISOString().slice(0, 16);
-  };
+    defaultValues: {
+      title: "",
+      start: "09:00",
+      end: "10:00",
+      location: "",
+      description: "",
+      color: "bg-blue-400",
+      repeat: "none",
+    },
+  });
 
-  const [start, setStart] = useState("");
-  const [end, setEnd] = useState("");
+  const selectedColor = watch("color");
 
-  // 🔥 初期値セット（編集 or 新規）
+  // 初期値セット（編集 or 新規）
   useEffect(() => {
     if (initialEvent) {
-      setTitle(initialEvent.title);
-      setLocation(initialEvent.location || "");
-      setDescription(initialEvent.description || "");
-      setColor(initialEvent.color || "bg-blue-400");
-      setStart(toLocalInputValue(new Date(initialEvent.start)));
-      setEnd(toLocalInputValue(new Date(initialEvent.end)));
+      reset({
+        title: initialEvent.title,
+
+        start: format(new Date(initialEvent.start), "HH:mm"),
+
+        end: format(new Date(initialEvent.end), "HH:mm"),
+
+        location: initialEvent.location || "",
+
+        description: initialEvent.description || "",
+
+        color: initialEvent.color || "bg-blue-400",
+        repeat: initialEvent.repeat || "none",
+      });
     } else {
       const defaultStart = new Date(selectedDate);
+
       defaultStart.setHours(9, 0, 0, 0);
 
       const defaultEnd = new Date(selectedDate);
+
       defaultEnd.setHours(10, 0, 0, 0);
 
-      setStart(toLocalInputValue(defaultStart));
-      setEnd(toLocalInputValue(defaultEnd));
+      reset({
+        title: "",
+
+        start: format(defaultStart, "HH:mm"),
+
+        end: format(defaultEnd, "HH:mm"),
+
+        location: "",
+
+        description: "",
+
+        color: "bg-blue-400",
+        repeat: "none",
+      });
     }
-  }, [initialEvent, selectedDate]);
+  }, [initialEvent, selectedDate, reset]);
 
-  const handleSave = () => {
-    const trimmedTitle = title.trim();
+  const handleSave = (data: FormData) => {
+    const startDate = new Date(selectedDate);
 
-    if (!trimmedTitle) {
-      setError("タイトルを入力してください");
-      return;
-    }
+    const endDate = new Date(selectedDate);
 
-    const startDate = new Date(start);
-    const endDate = new Date(end);
+    const [startHour, startMinute] = data.start.split(":");
 
-    if (startDate >= endDate) {
-      setError("終了時間は開始時間より後にしてください");
-      return;
-    }
+    const [endHour, endMinute] = data.end.split(":");
+
+    startDate.setHours(Number(startHour));
+
+    startDate.setMinutes(Number(startMinute));
+
+    endDate.setHours(Number(endHour));
+
+    endDate.setMinutes(Number(endMinute));
 
     onSave(
-      trimmedTitle,
+      data.title.trim(),
+
       startDate,
+
       endDate,
-      location || undefined,
-      description || undefined,
-      color,
+
+      data.location?.trim() || undefined,
+
+      data.description?.trim() || undefined,
+
+      data.color,
+      data.repeat,
     );
 
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center">
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
       <div className="bg-white p-4 rounded w-80">
         <h2 className="font-bold mb-2">
           {initialEvent ? "イベント編集" : "イベント作成"}
         </h2>
 
+        {/* タイトル */}
         <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className="border w-full p-1 mb-2"
+          {...register("title")}
+          className="border w-full p-1 mb-1"
           placeholder="タイトル"
         />
 
-        <input
-          type="datetime-local"
-          value={start}
-          onChange={(e) => setStart(e.target.value)}
-          className="border w-full p-1 mb-2"
-        />
+        {errors.title && (
+          <div className="text-red-500 text-sm mb-2">
+            {errors.title.message}
+          </div>
+        )}
 
-        <input
-          type="datetime-local"
-          value={end}
-          onChange={(e) => setEnd(e.target.value)}
-          className="border w-full p-1 mb-2"
-        />
+        {/* 開始 */}
+        <div className="mb-2">
+          <p className="text-sm mb-1">開始</p>
 
+          <input
+            type="time"
+            {...register("start")}
+            className="border w-full p-1"
+          />
+        </div>
+
+        {/* 終了 */}
+        <div className="mb-2">
+          <p className="text-sm mb-1">終了</p>
+
+          <input
+            type="time"
+            {...register("end")}
+            className="border w-full p-1"
+          />
+        </div>
+
+        {errors.end && (
+          <div className="text-red-500 text-sm mb-2">{errors.end.message}</div>
+        )}
+
+        {/* 場所 */}
         <input
-          value={location}
-          onChange={(e) => setLocation(e.target.value)}
-          className="border w-full p-1 mb-2"
+          {...register("location")}
+          className="border w-full p-1 mb-1"
           placeholder="場所"
         />
 
+        {errors.location && (
+          <div className="text-red-500 text-sm mb-2">
+            {errors.location.message}
+          </div>
+        )}
+
+        {/* 詳細 */}
         <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          className="border w-full p-1 mb-2"
+          {...register("description")}
+          className="border w-full p-1 mb-1"
           placeholder="詳細"
         />
+
+        {errors.description && (
+          <div className="text-red-500 text-sm mb-2">
+            {errors.description.message}
+          </div>
+        )}
 
         {/* 色 */}
         <div className="flex gap-2 mb-3">
@@ -142,21 +249,34 @@ export default function EventForm({
           ].map((c) => (
             <div
               key={c}
-              onClick={() => setColor(c)}
+              onClick={() => setValue("color", c)}
               className={`w-6 h-6 rounded-full cursor-pointer ${c} ${
-                color === c ? "ring-2 ring-black" : ""
+                selectedColor === c ? "ring-2 ring-black" : ""
               }`}
             />
           ))}
         </div>
 
-        {error && <div className="text-red-500 text-sm">{error}</div>}
+        {/* 繰り返し */}
+        <div className="mb-3">
+          <p className="text-sm mb-1">繰り返し</p>
 
+          <select {...register("repeat")} className="border w-full p-1">
+            <option value="none">なし</option>
+            <option value="daily">毎日</option>
+            <option value="weekly">毎週</option>
+            <option value="monthly">毎月</option>
+            <option value="yearly">毎年</option>
+          </select>
+        </div>
+
+        {/* ボタン */}
         <div className="flex justify-between mt-2">
           <button onClick={onClose}>キャンセル</button>
+
           <button
-            onClick={handleSave}
-            className="bg-blue-500 text-white px-2 py-1"
+            onClick={handleSubmit(handleSave)}
+            className="bg-blue-500 text-white px-2 py-1 rounded"
           >
             保存
           </button>

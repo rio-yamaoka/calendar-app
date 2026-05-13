@@ -16,7 +16,7 @@ export default function EventDetail({
   onEdit,
 }: Props) {
   return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center">
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
       <div className="bg-white p-4 rounded w-80">
         <h2
           className={`text-lg font-bold mb-2 ${event.color} text-white p-2 rounded`}
@@ -29,7 +29,22 @@ export default function EventDetail({
         </p>
 
         {event.location && <p className="mb-2">📍 {event.location}</p>}
+
         {event.description && <p className="mb-2">📝 {event.description}</p>}
+
+        {event.repeat && event.repeat !== "none" && (
+          <p className="mb-2">
+            🔁{" "}
+            {
+              {
+                daily: "毎日",
+                weekly: "毎週",
+                monthly: "毎月",
+                yearly: "毎年",
+              }[event.repeat]
+            }
+          </p>
+        )}
 
         <div className="flex justify-between mt-4">
           <button onClick={onDelete} className="text-red-500">
@@ -39,6 +54,7 @@ export default function EventDetail({
           <button
             onClick={() => {
               onClose();
+
               onEdit(event);
             }}
           >
