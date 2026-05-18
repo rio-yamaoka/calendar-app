@@ -16,6 +16,10 @@ import type { Event } from "@/types/event";
 
 import { getDayEvents } from "@/lib/getDayEvents";
 
+import DraggableEvent from "./DraggableEvent";
+
+import DropDay from "./DropDay";
+
 type Props = {
   currentDate: Date;
   selectedDate: Date;
@@ -23,6 +27,7 @@ type Props = {
   events: Event[];
   onEventClick: (event: Event) => void;
   onMoreClick: (date: Date) => void;
+  onEventDrop: (event: Event, newDate: Date) => void;
 };
 
 export default function MonthView({
@@ -32,6 +37,7 @@ export default function MonthView({
   events,
   onEventClick,
   onMoreClick,
+  onEventDrop,
 }: Props) {
   const startMonth = startOfMonth(currentDate);
 
@@ -69,77 +75,69 @@ export default function MonthView({
           const isSelected = isSameDay(day, selectedDate);
 
           return (
-            <div
-              key={i}
-              onClick={() => setSelectedDate(day)}
-              className={`border-r border-b border-gray-300 h-24 p-1 text-sm cursor-pointer ${
-                isTodayDate
-                  ? "bg-blue-100"
-                  : isCurrentMonth
-                    ? "bg-white"
-                    : "bg-gray-200"
-              } ${isSelected ? "ring-2 ring-black z-10 relative" : ""}`}
-            >
-              <div>{format(day, "d")}</div>
+            <DropDay key={i} day={day} onEventDrop={onEventDrop}>
+              {(isOver) => (
+                <div
+                  onClick={() => setSelectedDate(day)}
+                  className={`border-r border-b border-gray-300 h-24 p-1 text-sm cursor-pointer ${
+                    isOver
+                      ? "bg-green-100"
+                      : isTodayDate
+                        ? "bg-blue-100"
+                        : isCurrentMonth
+                          ? "bg-white"
+                          : "bg-gray-200"
+                  } ${isSelected ? "ring-2 ring-black z-10 relative" : ""}`}
+                >
+                  <div>{format(day, "d")}</div>
 
-              <div className="mt-1 space-y-1 overflow-hidden">
-                {(() => {
-                  const dayEvents = getDayEvents(day, events);
+                  <div className="mt-1 space-y-1 overflow-hidden">
+                    {(() => {
+                      const dayEvents = getDayEvents(day, events);
 
-                  const visibleEvents = dayEvents.slice(0, 1);
+                      const visibleEvents = dayEvents.slice(0, 1);
 
-                  const hiddenCount = dayEvents.length - 1;
+                      const hiddenCount = dayEvents.length - 1;
 
-                  return (
-                    <>
-                      {/* 表示するイベント */}
-                      {visibleEvents.map((event) => (
-                        <div
-                          key={event.id}
-                          onClick={(e) => {
-                            e.stopPropagation();
+                      return (
+                        <>
+                          {/* 表示するイベント */}
+                          {visibleEvents.map((event) => (
+                            <DraggableEvent
+                              key={event.id}
+                              event={event}
+                              onEventClick={onEventClick}
+                            />
+                          ))}
 
-                            onEventClick(event);
-                          }}
-                          className={`text-xs ${
-                            event.color || "bg-blue-400"
-                          } text-white rounded px-1 truncate cursor-pointer`}
-                        >
-                          <div className="font-semibold">
-                            {format(event.start, "HH:mm")} -{" "}
-                            {format(event.end, "HH:mm")}
-                          </div>
+                          {/* +件数 */}
+                          {hiddenCount > 0 && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
 
-                          <div>{event.title}</div>
-                        </div>
-                      ))}
-
-                      {/* +件数 */}
-                      {hiddenCount > 0 && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-
-                            onMoreClick(day);
-                          }}
-                          className="
-                            w-full
-                            text-xs
-                            bg-gray-100
-                            rounded
-                            px-1
-                            py-1
-                            hover:bg-gray-200
-                          "
-                        >
-                          +{hiddenCount}
-                        </button>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-            </div>
+                                onMoreClick(day);
+                              }}
+                              className="
+                                w-full
+                                text-xs
+                                bg-gray-100
+                                rounded
+                                px-1
+                                py-1
+                                hover:bg-gray-200
+                              "
+                            >
+                              +{hiddenCount}
+                            </button>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
+            </DropDay>
           );
         })}
       </div>

@@ -13,6 +13,9 @@ import CalendarNavigation from "./CalendarNavigation";
 
 import type { Event } from "@/types/event";
 
+import { DndProvider } from "react-dnd";
+
+import { HTML5Backend } from "react-dnd-html5-backend";
 export default function Calendar() {
   const [moreDate, setMoreDate] = useState<Date | null>(null);
 
@@ -32,9 +35,9 @@ export default function Calendar() {
 
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
 
-  useEffect(() => {
-    setCurrentDate(selectedDate);
-  }, [view]);
+  // useEffect(() => {
+  //   setCurrentDate(selectedDate);
+  // }, [view]);
 
   // 読み込み
   useEffect(() => {
@@ -120,131 +123,177 @@ export default function Calendar() {
     setEditingEvent(null);
   };
 
+  const handleEventDrop = (event: Event, newDate: Date, dragStart?: Date) => {
+    setEvents((prevEvents) => {
+      return prevEvents.map((e) => {
+        if (e.id !== event.id) {
+          return e;
+        }
+
+        const duration = e.end.getTime() - e.start.getTime();
+
+        const offset = dragStart ? dragStart.getTime() - e.start.getTime() : 0;
+
+        const newStart = new Date(newDate.getTime() - offset);
+
+        // 月表示用
+        // 00:00 dropなら元時間維持
+        // 月表示だけ
+        if (
+          view === "month" &&
+          newDate.getHours() === 0 &&
+          newDate.getMinutes() === 0
+        ) {
+          newStart.setHours(e.start.getHours());
+
+          newStart.setMinutes(e.start.getMinutes());
+        }
+        const newEnd = new Date(newStart.getTime() + duration);
+
+        // 翌日跨ぎ
+        if (newEnd.getDate() !== newStart.getDate()) {
+          newEnd.setDate(newStart.getDate() + 1);
+        }
+
+        // 前日跨ぎ
+        if (newStart.getTime() < new Date(newStart).setHours(0, 0, 0, 0)) {
+          newStart.setDate(newStart.getDate() - 1);
+        }
+
+        return {
+          ...e,
+          start: newStart,
+          end: newEnd,
+        };
+      });
+    });
+  };
   return (
-    <div>
-      <Header
-        selectedDate={selectedDate}
-        view={view}
-        setView={setView}
-        onAddEvent={() => {
-          setEditingEvent(null);
-
-          setSelectedEvent(null);
-
-          setIsOpen(true);
-        }}
-      />
-
-      <CalendarNavigation
-        currentDate={currentDate}
-        setCurrentDate={setCurrentDate}
-        setSelectedDate={setSelectedDate}
-        view={view}
-      />
-
-      {/* 月表示 */}
-      {view === "month" && (
-        <MonthView
+    <DndProvider backend={HTML5Backend}>
+      <div>
+        <Header
           currentDate={currentDate}
           selectedDate={selectedDate}
           setSelectedDate={setSelectedDate}
-          events={events}
-          onEventClick={(event) => {
-            setSelectedEvent(event);
-
-            setSelectedDate(event.start);
-
-            setIsOpen(true);
-          }}
-          onMoreClick={(date) => {
-            setMoreDate(date);
-          }}
-        />
-      )}
-
-      {/* 週表示 */}
-      {view === "week" && (
-        <WeekView
-          currentDate={currentDate}
-          selectedDate={selectedDate}
-          setSelectedDate={setSelectedDate}
-          events={events}
-          onEventClick={(event) => {
-            setSelectedEvent(event);
-
-            setSelectedDate(event.start);
-
-            setIsOpen(true);
-          }}
-        />
-      )}
-
-      {/* 日表示 */}
-      {view === "day" && (
-        <DayView
-          currentDate={currentDate}
-          selectedDate={selectedDate}
-          setSelectedDate={setSelectedDate}
-          events={events}
-          onEventClick={(event) => {
-            setSelectedEvent(event);
-
-            setSelectedDate(event.start);
-
-            setIsOpen(true);
-          }}
-        />
-      )}
-
-      {/* フォーム */}
-      {isOpen && selectedEvent === null && (
-        <EventForm
-          selectedDate={selectedDate}
-          initialEvent={editingEvent || undefined}
-          onSave={handleSave}
-          onClose={() => {
-            setIsOpen(false);
-
+          setCurrentDate={setCurrentDate}
+          view={view}
+          setView={setView}
+          onAddEvent={() => {
             setEditingEvent(null);
-          }}
-        />
-      )}
-
-      {/* +件数 */}
-      {moreDate && (
-        <DayEventsModal
-          date={moreDate}
-          events={events}
-          onClose={() => setMoreDate(null)}
-          onEventClick={(event) => {
-            setSelectedEvent(event);
-
-            setMoreDate(null);
-
-            setIsOpen(true);
-          }}
-        />
-      )}
-
-      {/* 詳細 */}
-      {isOpen && selectedEvent && (
-        <EventDetail
-          event={selectedEvent}
-          onClose={() => {
-            setIsOpen(false);
-
-            setSelectedEvent(null);
-          }}
-          onDelete={handleDelete}
-          onEdit={(event) => {
-            setEditingEvent(event);
 
             setSelectedEvent(null);
 
             setIsOpen(true);
           }}
         />
-      )}
-    </div>
+        {/* 月表示 */}
+        {view === "month" && (
+          <MonthView
+            currentDate={currentDate}
+            selectedDate={selectedDate}
+            setSelectedDate={setSelectedDate}
+            events={events}
+            onEventClick={(event) => {
+              setSelectedEvent(event);
+
+              setSelectedDate(new Date(event.start));
+
+              setIsOpen(true);
+            }}
+            onMoreClick={(date) => {
+              setMoreDate(date);
+            }}
+            onEventDrop={handleEventDrop}
+          />
+        )}
+
+        {/* 週表示 */}
+        {view === "week" && (
+          <WeekView
+            currentDate={currentDate}
+            selectedDate={selectedDate}
+            setSelectedDate={setSelectedDate}
+            events={events}
+            onEventClick={(event) => {
+              setSelectedEvent(event);
+
+              // setSelectedDate(event.start);
+              setSelectedDate(new Date(event.start));
+              setIsOpen(true);
+            }}
+            onEventDrop={handleEventDrop}
+            setCurrentDate={setCurrentDate}
+          />
+        )}
+        {/* 日表示 */}
+        {view === "day" && (
+          <DayView
+            currentDate={currentDate}
+            selectedDate={selectedDate}
+            setSelectedDate={setSelectedDate}
+            events={events}
+            onEventClick={(event) => {
+              setSelectedEvent(event);
+
+              // setSelectedDate(event.start);
+              setSelectedDate(new Date(event.start));
+
+              setIsOpen(true);
+            }}
+            onEventDrop={handleEventDrop}
+            setCurrentDate={setCurrentDate}
+          />
+        )}
+        {/* フォーム */}
+        {isOpen && selectedEvent === null && (
+          <EventForm
+            selectedDate={selectedDate}
+            initialEvent={editingEvent || undefined}
+            onSave={handleSave}
+            onClose={() => {
+              setIsOpen(false);
+
+              setEditingEvent(null);
+            }}
+          />
+        )}
+
+        {/* +件数 */}
+        {moreDate && (
+          <DayEventsModal
+            date={moreDate}
+            events={events}
+            onClose={() => setMoreDate(null)}
+            onEventClick={(event) => {
+              setSelectedEvent(event);
+
+              setMoreDate(null);
+
+              setIsOpen(true);
+            }}
+          />
+        )}
+
+        {/* 詳細 */}
+        {isOpen && selectedEvent && (
+          <EventDetail
+            event={selectedEvent}
+            onClose={() => {
+              setIsOpen(false);
+
+              setSelectedEvent(null);
+            }}
+            onDelete={handleDelete}
+            onEdit={(event) => {
+              setEditingEvent(event);
+
+              setSelectedEvent(null);
+
+              setIsOpen(true);
+            }}
+          />
+        )}
+      </div>
+    </DndProvider>
   );
 }

@@ -1,12 +1,16 @@
-import { isSameDay, differenceInCalendarDays } from "date-fns";
+import { differenceInCalendarDays, startOfDay, endOfDay } from "date-fns";
 
 import type { Event } from "@/types/event";
 
 export function getDayEvents(day: Date, events: Event[]) {
+  const dayStart = startOfDay(day);
+
+  const dayEnd = endOfDay(day);
+
   return events
     .filter((event) => {
-      // 通常イベント
-      if (isSameDay(event.start, day)) {
+      // その日とイベント時間帯が重なっている
+      if (event.start <= dayEnd && event.end >= dayStart) {
         return true;
       }
 

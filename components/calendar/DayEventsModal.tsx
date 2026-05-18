@@ -1,8 +1,10 @@
 "use client";
 
-import { format, isSameDay } from "date-fns";
+import { format } from "date-fns";
 
 import type { Event } from "@/types/event";
+
+import { getDayEvents } from "@/lib/getDayEvents";
 
 type Props = {
   date: Date;
@@ -17,9 +19,8 @@ export default function DayEventsModal({
   onClose,
   onEventClick,
 }: Props) {
-  const dayEvents = events
-    .filter((event) => isSameDay(event.start, date))
-    .sort((a, b) => a.start.getTime() - b.start.getTime());
+  const dayEvents = getDayEvents(date, events);
+
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
       <div className="bg-white rounded-xl p-6 w-[500px] max-h-[80vh] overflow-y-auto">
@@ -39,7 +40,9 @@ export default function DayEventsModal({
               }`}
             >
               <div className="font-semibold text-sm">
-                {format(event.start, "HH:mm")} - {format(event.end, "HH:mm")}
+                {format(event.start, "MM/dd HH:mm")}
+                {" - "}
+                {format(event.end, "MM/dd HH:mm")}
               </div>
 
               <div className="font-bold">{event.title}</div>

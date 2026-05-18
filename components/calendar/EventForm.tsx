@@ -25,37 +25,28 @@ type Props = {
     repeat?: "none" | "daily" | "weekly" | "monthly" | "yearly",
   ) => void;
   onClose: () => void;
-  onDelete?: () => void;
 };
 
-const schema = z
-  .object({
-    title: z
-      .string()
-      .min(1, "タイトルを入力してください")
-      .max(50, "タイトルは50文字以内です"),
+const schema = z.object({
+  title: z
+    .string()
+    .min(1, "タイトルを入力してください")
+    .max(50, "タイトルは50文字以内です"),
 
-    start: z.string(),
+  start: z.string(),
 
-    end: z.string(),
+  endDate: z.string(),
 
-    location: z.string().max(30, "場所は30文字以内です").optional(),
+  end: z.string(),
 
-    description: z.string().max(200, "詳細は200文字以内です").optional(),
+  location: z.string().max(30, "場所は30文字以内です").optional(),
 
-    color: z.string(),
+  description: z.string().max(200, "詳細は200文字以内です").optional(),
 
-    repeat: z.enum(["none", "daily", "weekly", "monthly", "yearly"]).optional(),
-  })
-  .refine(
-    (data) => {
-      return data.start < data.end;
-    },
-    {
-      message: "終了時間は開始時間より後にしてください",
-      path: ["end"],
-    },
-  );
+  color: z.string(),
+
+  repeat: z.enum(["none", "daily", "weekly", "monthly", "yearly"]).optional(),
+});
 
 type FormData = z.infer<typeof schema>;
 
@@ -78,6 +69,7 @@ export default function EventForm({
     defaultValues: {
       title: "",
       start: "09:00",
+      endDate: format(selectedDate, "yyyy-MM-dd"),
       end: "10:00",
       location: "",
       description: "",
@@ -88,21 +80,23 @@ export default function EventForm({
 
   const selectedColor = watch("color");
 
-  // 初期値セット（編集 or 新規）
   useEffect(() => {
     if (initialEvent) {
       reset({
         title: initialEvent.title,
 
-        start: format(new Date(initialEvent.start), "HH:mm"),
+        start: format(initialEvent.start, "HH:mm"),
 
-        end: format(new Date(initialEvent.end), "HH:mm"),
+        endDate: format(initialEvent.end, "yyyy-MM-dd"),
+
+        end: format(initialEvent.end, "HH:mm"),
 
         location: initialEvent.location || "",
 
         description: initialEvent.description || "",
 
         color: initialEvent.color || "bg-blue-400",
+
         repeat: initialEvent.repeat || "none",
       });
     } else {
@@ -119,6 +113,8 @@ export default function EventForm({
 
         start: format(defaultStart, "HH:mm"),
 
+        endDate: format(defaultEnd, "yyyy-MM-dd"),
+
         end: format(defaultEnd, "HH:mm"),
 
         location: "",
@@ -126,6 +122,7 @@ export default function EventForm({
         description: "",
 
         color: "bg-blue-400",
+
         repeat: "none",
       });
     }
@@ -134,19 +131,21 @@ export default function EventForm({
   const handleSave = (data: FormData) => {
     const startDate = new Date(selectedDate);
 
-    const endDate = new Date(selectedDate);
+    const endDate = new Date(data.endDate);
 
     const [startHour, startMinute] = data.start.split(":");
 
     const [endHour, endMinute] = data.end.split(":");
 
-    startDate.setHours(Number(startHour));
+    startDate.setHours(Number(startHour), Number(startMinute), 0, 0);
 
-    startDate.setMinutes(Number(startMinute));
+    endDate.setHours(Number(endHour), Number(endMinute), 0, 0);
 
-    endDate.setHours(Number(endHour));
+    if (endDate.getTime() <= startDate.getTime()) {
+      alert("終了日時は開始日時より後にしてください");
 
-    endDate.setMinutes(Number(endMinute));
+      return;
+    }
 
     onSave(
       data.title.trim(),
@@ -160,6 +159,7 @@ export default function EventForm({
       data.description?.trim() || undefined,
 
       data.color,
+
       data.repeat,
     );
 
@@ -173,7 +173,6 @@ export default function EventForm({
           {initialEvent ? "イベント編集" : "イベント作成"}
         </h2>
 
-        {/* タイトル */}
         <input
           {...register("title")}
           className="border w-full p-1 mb-1"
@@ -186,7 +185,6 @@ export default function EventForm({
           </div>
         )}
 
-        {/* 開始 */}
         <div className="mb-2">
           <p className="text-sm mb-1">開始</p>
 
@@ -197,48 +195,36 @@ export default function EventForm({
           />
         </div>
 
-        {/* 終了 */}
         <div className="mb-2">
           <p className="text-sm mb-1">終了</p>
 
-          <input
-            type="time"
-            {...register("end")}
-            className="border w-full p-1"
-          />
+          <div className="flex gap-2">
+            <input
+              type="date"
+              {...register("endDate")}
+              className="border p-1 flex-1"
+            />
+
+            <input
+              type="time"
+              {...register("end")}
+              className="border p-1 flex-1"
+            />
+          </div>
         </div>
 
-        {errors.end && (
-          <div className="text-red-500 text-sm mb-2">{errors.end.message}</div>
-        )}
-
-        {/* 場所 */}
         <input
           {...register("location")}
           className="border w-full p-1 mb-1"
           placeholder="場所"
         />
 
-        {errors.location && (
-          <div className="text-red-500 text-sm mb-2">
-            {errors.location.message}
-          </div>
-        )}
-
-        {/* 詳細 */}
         <textarea
           {...register("description")}
           className="border w-full p-1 mb-1"
           placeholder="詳細"
         />
 
-        {errors.description && (
-          <div className="text-red-500 text-sm mb-2">
-            {errors.description.message}
-          </div>
-        )}
-
-        {/* 色 */}
         <div className="flex gap-2 mb-3">
           {[
             "bg-blue-400",
@@ -250,28 +236,25 @@ export default function EventForm({
             <div
               key={c}
               onClick={() => setValue("color", c)}
-              className={`w-6 h-6 rounded-full cursor-pointer ${c} ${
-                selectedColor === c ? "ring-2 ring-black" : ""
-              }`}
+              className={`w-6 h-6 rounded-full cursor-pointer ${c}
+              ${selectedColor === c ? "ring-2 ring-black" : ""}`}
             />
           ))}
         </div>
 
-        {/* 繰り返し */}
-        <div className="mb-3">
-          <p className="text-sm mb-1">繰り返し</p>
+        <select {...register("repeat")} className="border w-full p-1">
+          <option value="none">なし</option>
 
-          <select {...register("repeat")} className="border w-full p-1">
-            <option value="none">なし</option>
-            <option value="daily">毎日</option>
-            <option value="weekly">毎週</option>
-            <option value="monthly">毎月</option>
-            <option value="yearly">毎年</option>
-          </select>
-        </div>
+          <option value="daily">毎日</option>
 
-        {/* ボタン */}
-        <div className="flex justify-between mt-2">
+          <option value="weekly">毎週</option>
+
+          <option value="monthly">毎月</option>
+
+          <option value="yearly">毎年</option>
+        </select>
+
+        <div className="flex justify-between mt-4">
           <button onClick={onClose}>キャンセル</button>
 
           <button

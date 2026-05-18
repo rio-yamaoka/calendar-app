@@ -3,14 +3,27 @@
 import { format, isSameDay } from "date-fns";
 
 import type { Event } from "@/types/event";
+
 import { getDayEvents } from "@/lib/getDayEvents";
+
+import DraggableEvent from "./DraggableEvent";
+
+import DropColumn from "./DropColumn";
 
 type Props = {
   currentDate: Date;
+
   selectedDate: Date;
+
   setSelectedDate: (date: Date) => void;
+
   events: Event[];
+
   onEventClick: (event: Event) => void;
+
+  onEventDrop: (event: Event, newDate: Date) => void;
+
+  setCurrentDate: (date: Date) => void;
 };
 
 export default function DayView({
@@ -19,13 +32,13 @@ export default function DayView({
   setSelectedDate,
   events,
   onEventClick,
+  onEventDrop,
+  setCurrentDate,
 }: Props) {
-  // 30分ごと
   const timeSlots = Array.from({ length: 48 }, (_, i) => i);
 
-  // その日のイベントだけ
+  // const dayEvents = getDayEvents(selectedDate, events);
   const dayEvents = getDayEvents(currentDate, events);
-
   return (
     <div className="flex border-t border-l bg-white">
       {/* 時間列 */}
@@ -36,11 +49,21 @@ export default function DayView({
           const minute = slot % 2 === 0 ? "00" : "30";
 
           return (
-            <div key={slot} className="relative h-10 border-r">
-              {/* 横線 */}
+            <div
+              key={slot}
+              className="
+                relative
+                h-10
+                border-r
+              "
+            >
+              {/* 線 */}
               <div
                 className={`
-                  absolute top-0 left-0 w-full
+                  absolute
+                  top-0
+                  left-0
+                  w-full
                   ${
                     minute === "30"
                       ? "border-t border-dashed border-gray-200"
@@ -58,141 +81,155 @@ export default function DayView({
         })}
       </div>
 
-      {/* 1日分 */}
-      <div className="flex-1">
-        {timeSlots.map((slot) => {
-          const hour = Math.floor(slot / 2);
+      {/* 1日カラム */}
+      <DropColumn
+        day={currentDate}
+        onEventDrop={onEventDrop}
+        setCurrentDate={setCurrentDate}
+      >
+        <div
+          className="
+            relative
+            border-r
+            min-h-[1920px]
+            w-full
+          "
+        >
+          {/* 背景グリッド */}
+          <div className="min-h-[1920px]">
+            {timeSlots.map((slot) => {
+              const hour = Math.floor(slot / 2);
 
-          const minute = slot % 2 === 0 ? "00" : "30";
+              const minute = slot % 2 === 0 ? "00" : "30";
 
-          const isSelected =
-            isSameDay(currentDate, selectedDate) &&
-            selectedDate.getHours() === hour &&
-            selectedDate.getMinutes() === (minute === "30" ? 30 : 0);
+              const isSelected =
+                isSameDay(currentDate, selectedDate) &&
+                selectedDate.getHours() === hour &&
+                selectedDate.getMinutes() === (minute === "30" ? 30 : 0);
+              return (
+                <div
+                  key={slot}
+                  onClick={() => {
+                    const clickedDate = new Date(currentDate);
 
-          return (
-            <div
-              key={slot}
-              onClick={() => {
-                const clickedDate = new Date(currentDate);
+                    clickedDate.setHours(hour);
 
-                clickedDate.setHours(hour);
+                    clickedDate.setMinutes(minute === "30" ? 30 : 0);
 
-                clickedDate.setMinutes(minute === "30" ? 30 : 0);
+                    setSelectedDate(clickedDate);
+                  }}
+                  className={`
+                    relative
+                    h-10
+                    cursor-pointer
+                    hover:bg-blue-50
+                    ${isSelected ? "ring-2 ring-black z-10" : ""}
+                  `}
+                >
+                  {/* 線 */}
+                  <div
+                    className={`
+                      absolute
+                      top-0
+                      left-0
+                      w-full
+                      ${
+                        minute === "30"
+                          ? "border-t border-dashed border-gray-200"
+                          : "border-t border-black/20"
+                      }
+                    `}
+                  />
+                </div>
+              );
+            })}
+          </div>
 
-                setSelectedDate(clickedDate);
-              }}
-              className={`
-                relative
-                h-10
-                border-r
-                cursor-pointer
-                hover:bg-blue-50
-                ${isSelected ? "ring-2 ring-black z-10" : ""}
-              `}
-            >
-              {/* 横線 */}
-              <div
-                className={`
-                  absolute top-0 left-0 w-full
-                  ${
-                    minute === "30"
-                      ? "border-t border-dashed border-gray-200"
-                      : "border-t border-black/20"
-                  }
-                `}
-              />
+          {/* イベント */}
+          <div
+            className="
+              absolute
+              inset-0
+              pointer-events-none
+              min-h-[1920px]
+            "
+          >
+            {dayEvents.map((event) => {
+              const dayStart = new Date(currentDate);
 
-              {/* イベント表示 */}
-              {dayEvents.map((event) => {
-                const startHour = event.start.getHours();
+              dayStart.setHours(0, 0, 0, 0);
 
-                const startMinute = event.start.getMinutes();
+              const nextDay = new Date(dayStart);
 
-                const eventSlot = startHour * 2 + (startMinute >= 30 ? 1 : 0);
+              nextDay.setDate(nextDay.getDate() + 1);
 
-                const endHour = event.end.getHours();
+              // 表示開始
+              const displayStart =
+                event.start < dayStart ? dayStart : event.start;
 
-                const endMinute = event.end.getMinutes();
+              // 表示終了
+              const displayEnd = event.end > nextDay ? nextDay : event.end;
 
-                const endSlot = endHour * 2 + (endMinute >= 30 ? 1 : 0);
+              const startHour = displayStart.getHours();
 
-                const duration = endSlot - eventSlot;
+              const startMinute = displayStart.getMinutes();
 
-                // 分のズレ
-                const top = ((startMinute % 30) / 30) * 40;
+              const endHour = displayEnd.getHours();
 
-                // 重なり検知
-                const overlappingEvents = dayEvents.filter((e) => {
-                  const eStartHour = e.start.getHours();
+              const endMinute = displayEnd.getMinutes();
 
-                  const eStartMinute = e.start.getMinutes();
+              const eventSlot = startHour * 2 + (startMinute >= 30 ? 1 : 0);
 
-                  const eEndHour = e.end.getHours();
+              const endSlot =
+                displayEnd.getTime() === nextDay.getTime()
+                  ? 48
+                  : endHour * 2 + (endMinute >= 30 ? 1 : 0);
 
-                  const eEndMinute = e.end.getMinutes();
+              const duration = Math.max(1, endSlot - eventSlot);
 
-                  const eStartSlot =
-                    eStartHour * 2 + (eStartMinute >= 30 ? 1 : 0);
+              const top = eventSlot * 40 + ((startMinute % 30) / 30) * 40;
 
-                  const eEndSlot = eEndHour * 2 + (eEndMinute >= 30 ? 1 : 0);
+              const overlappingEvents = dayEvents.filter((e) => {
+                const eDisplayStart = e.start < dayStart ? dayStart : e.start;
 
-                  return eventSlot < eEndSlot && endSlot > eStartSlot;
-                });
+                const eDisplayEnd = e.end > nextDay ? nextDay : e.end;
 
-                // 何番目？
-                const overlapIndex = overlappingEvents.findIndex(
-                  (e) => e.id === event.id,
-                );
+                return eDisplayStart < displayEnd && eDisplayEnd > displayStart;
+              });
 
-                // 何個重なってる？
-                const overlapCount = overlappingEvents.length;
+              const overlapIndex = overlappingEvents.findIndex(
+                (e) => e.id === event.id,
+              );
 
-                return (
-                  slot === eventSlot && (
-                    <div
-                      key={event.id}
-                      style={{
-                        top: `${top}px`,
-                        left: `${(100 / overlapCount) * overlapIndex}%`,
-                        width: `${100 / overlapCount}%`,
-                        height: `${duration * 40}px`,
-                        zIndex: 10,
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
+              const overlapCount = overlappingEvents.length;
 
-                        onEventClick(event);
-                      }}
-                      className={`
-                        absolute
-                        px-1
-                        py-1
-                        rounded-lg
-                        text-white
-                        overflow-hidden
-                        break-words
-                        leading-tight
-                        text-[11px]
-                        shadow-sm
-                        border
-                        border-white
-                        ${event.color || "bg-blue-400"}
-                      `}
-                    >
-                      <div className="font-semibold">
-                        {format(event.start, "HH:mm")}
-                      </div>
-
-                      <div className="line-clamp-2">{event.title}</div>
-                    </div>
-                  )
-                );
-              })}
-            </div>
-          );
-        })}
-      </div>
+              return (
+                <div
+                  key={event.id}
+                  style={{
+                    top: `${top}px`,
+                    left: `${(100 / overlapCount) * overlapIndex}%`,
+                    width: `calc(${88 / overlapCount}% - 4px)`,
+                    height: `${duration * 40}px`,
+                    zIndex: 1,
+                  }}
+                  className="
+      absolute
+      min-w-0
+      pointer-events-none
+    "
+                >
+                  <DraggableEvent
+                    event={event}
+                    onEventClick={onEventClick}
+                    dragStart={displayStart}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </DropColumn>
     </div>
   );
 }

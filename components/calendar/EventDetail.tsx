@@ -1,5 +1,5 @@
 "use client";
-
+import { format } from "date-fns";
 import type { Event } from "@/types/event";
 
 type Props = {
@@ -25,7 +25,9 @@ export default function EventDetail({
         </h2>
 
         <p className="mb-2">
-          {event.start.toLocaleString()} - {event.end.toLocaleString()}
+          {format(event.start, "yyyy/MM/dd HH:mm")}
+          {" - "}
+          {format(event.end, "yyyy/MM/dd HH:mm")}
         </p>
 
         {event.location && <p className="mb-2">📍 {event.location}</p>}
